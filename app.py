@@ -48,7 +48,7 @@ custom_style = """
     #MainMenu {visibility: hidden;}
     footer {visibility: hidden;}
     footer:after {
-        content:'💖 Built by Mohammad — for Alexie, with love.';
+        content:'💖 Built by Shakir — for Alexie, with love.';
         visibility: visible;
         display: block;
         text-align: center;
@@ -104,25 +104,17 @@ def js_escape(s: str) -> str:
 # ---------- Load API Key ----------
 load_dotenv()
 api_key = os.getenv("OPENROUTER_API_KEY")
+print(f"Loaded API Key: {api_key}")  # Debug: Check if key is loaded
+
 if not api_key:
     st.error("⚠️ OPENROUTER_API_KEY missing in .env file")
     st.stop()
 
-# Optional but helpful for OpenRouter rate-limits/analytics
-http_headers = {
-    "HTTP-Referer": os.getenv("APP_URL", "http://localhost"),
-    "X-Title": os.getenv("APP_TITLE", "Stitchy AI"),
-}
-
-# ✅ Correct client init for OpenRouter
+# OpenRouter client
 client = OpenAI(
-    base_url="https://openrouter.ai/api/v1",
     api_key=api_key,
-    default_headers=http_headers
+    base_url="https://openrouter.ai/api/v1"
 )
-
-# ---------- Title ----------
-st.title("💜 Stitchy AI")
 
 # ---------- Header ----------
 st.markdown('<div class="header"><div class="logo">Stitchy – Your AI Companion</div></div>', unsafe_allow_html=True)
@@ -167,13 +159,13 @@ if user_input:
     with st.chat_message("assistant"):
         placeholder = st.empty()
         full_response = ""
+        print(f"API Key: {api_key}")  # Debug: Check key before API call
         try:
             stream = client.chat.completions.create(
-    model=os.getenv("CHAT_MODEL", "openai/gpt-4o-mini"),  # ✅ Correct default
-    messages=st.session_state["messages"],
-    stream=True,
-)
-
+                model="openai/gpt-4o-mini",
+                messages=st.session_state["messages"],
+                stream=True,
+            )
             for chunk in stream:
                 if chunk.choices and chunk.choices[0].delta:
                     delta = chunk.choices[0].delta.content or ""
@@ -182,7 +174,7 @@ if user_input:
                         placeholder.markdown(full_response + "▌")
             placeholder.markdown(full_response or "_(no response)_")
         except Exception as e:
-            full_response = f"Sorry, I hit an error: {e}"
+            full_response = f"Sorry, I hit an error: {str(e)}"
             placeholder.markdown(full_response)
 
     st.session_state["messages"].append({"role": "assistant", "content": full_response})
@@ -284,7 +276,7 @@ if st.session_state["tools_visible"]:
         quotes = [
             "Kaya mo yan, Alexie! Keep pushing forward! 🌟",
             "You are stronger than you think, my friend! 💪",
-            "Every step counts—great work, Alexie! 🎉",
+            "Every step counts—great work, Alexie! 🎉"
         ]
         idx = st.session_state.get("motivation_index", 0)
         st.sidebar.info(quotes[idx])
