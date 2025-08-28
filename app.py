@@ -103,18 +103,23 @@ def js_escape(s: str) -> str:
 
 # ---------- Load API Key ----------
 load_dotenv()
-api_key = os.getenv("OPENROUTER_API_KEY")
-print(f"Loaded API Key: {api_key}")  # Debug: Check if key is loaded
-
+api_key = st.secrets.get("OPENROUTER_API_KEY") if hasattr(st, 'secrets') and "OPENROUTER_API_KEY" in st.secrets else os.getenv("OPENROUTER_API_KEY")
 if not api_key:
-    st.error("⚠️ OPENROUTER_API_KEY missing in .env file")
+    st.error("⚠️ OPENROUTER_API_KEY missing in secrets or .env file. Please set it in Streamlit Secrets or .env.")
     st.stop()
 
+st.write(f"Debug: API Key loaded (first 5 chars): {api_key[:5]}...")  # Debug
+
 # OpenRouter client
-client = OpenAI(
-    api_key=api_key,
-    base_url="https://openrouter.ai/api/v1"
-)
+try:
+    client = OpenAI(
+        api_key=api_key,
+        base_url="https://openrouter.ai/api/v1"
+    )
+    st.write("Debug: OpenAI client initialized successfully!")
+except Exception as e:
+    st.error(f"Error initializing OpenAI client: {str(e)}")
+    st.stop()
 
 # ---------- Header ----------
 st.markdown('<div class="header"><div class="logo">Stitchy – Your AI Companion</div></div>', unsafe_allow_html=True)
@@ -159,7 +164,6 @@ if user_input:
     with st.chat_message("assistant"):
         placeholder = st.empty()
         full_response = ""
-        print(f"API Key: {api_key}")  # Debug: Check key before API call
         try:
             stream = client.chat.completions.create(
                 model="openai/gpt-4o-mini",
@@ -285,7 +289,7 @@ if st.session_state["tools_visible"]:
     # Image Analysis (Vision)
     uploaded_file = st.sidebar.file_uploader("Upload Image for Analysis", type=["jpg", "jpeg", "png"])
     if uploaded_file is not None:
-        st.sidebar.image(uploaded_file, caption="Uploaded Image", use_column_width=True)
+        st.sidebar.image(uploaded_file, caption="Uploaded Image", use_container_width=True)  # Fixed deprecation
         bytes_data = uploaded_file.getvalue()
         mime = "image/png" if uploaded_file.name.lower().endswith(".png") else "image/jpeg"
         b64 = base64.b64encode(bytes_data).decode("utf-8")
@@ -310,7 +314,7 @@ if st.session_state["tools_visible"]:
             st.write("Analyzing image...")
             try:
                 response = client.chat.completions.create(
-                    model=os.getenv("VISION_MODEL", "qwen/qwen2.5-vl-32b-instruct:free"),  # Updated to a free vision model
+                    model=os.getenv("VISION_MODEL", "qwen/qwen2.5-vl-32b-instruct:free"),
                     messages=vision_messages,
                     max_tokens=300
                 )
