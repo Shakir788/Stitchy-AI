@@ -114,12 +114,15 @@ http_headers = {
     "X-Title": os.getenv("APP_TITLE", "Stitchy AI"),
 }
 
-# ✅ Fixed client init (no proxies)
+# ✅ Correct client init for OpenRouter
 client = OpenAI(
-    api_key=api_key,
     base_url="https://openrouter.ai/api/v1",
+    api_key=api_key,
     default_headers=http_headers
 )
+
+# ---------- Title ----------
+st.title("💜 Stitchy AI")
 
 # ---------- Header ----------
 st.markdown('<div class="header"><div class="logo">Stitchy – Your AI Companion</div></div>', unsafe_allow_html=True)
@@ -166,10 +169,11 @@ if user_input:
         full_response = ""
         try:
             stream = client.chat.completions.create(
-                model=os.getenv("CHAT_MODEL", "openai/gpt-4o-mini"),
-                messages=st.session_state["messages"],
-                stream=True,
-            )
+    model=os.getenv("CHAT_MODEL", "openai/gpt-4o-mini"),  # ✅ Correct default
+    messages=st.session_state["messages"],
+    stream=True,
+)
+
             for chunk in stream:
                 if chunk.choices and chunk.choices[0].delta:
                     delta = chunk.choices[0].delta.content or ""
