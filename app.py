@@ -101,6 +101,13 @@ def js_escape(s: str) -> str:
     """Escape Python string for safe embedding inside JS string literals."""
     return s.replace("\\", "\\\\").replace('"', '\\"').replace("\n", " ").replace("\r", " ")
 
+def read_file_content(file):
+    """Read content from uploaded file."""
+    if file.type == "text/plain":
+        return file.read().decode("utf-8")
+    else:
+        return f"Sorry, only text files (.txt) are supported for now. Uploaded: {file.name}"
+
 # ---------- Load API Key ----------
 load_dotenv()
 api_key = st.secrets.get("OPENROUTER_API_KEY") if hasattr(st, 'secrets') and "OPENROUTER_API_KEY" in st.secrets else os.getenv("OPENROUTER_API_KEY")
@@ -154,12 +161,21 @@ with chat_container:
                 st.markdown(msg["content"])
     st.markdown("</div>", unsafe_allow_html=True)
 
+# ---------- File Upload ----------
+uploaded_file = st.file_uploader("Upload a file (e.g., .txt) to include in chat", type=["txt"])
+if uploaded_file is not None:
+    file_content = read_file_content(uploaded_file)
+    st.session_state["messages"].append({"role": "user", "content": f"File content: {file_content}"})
+    with st.chat_message("user"):
+        st.markdown(f"Uploaded file: {uploaded_file.name}\nContent: {file_content}")
+
 # ---------- User Input & Streaming ----------
 user_input = st.chat_input("Say something to Stitchy...")
-if user_input:
-    st.session_state["messages"].append({"role": "user", "content": user_input})
+if user_input or uploaded_file:
+    user_message = user_input if user_input else "Please analyze the uploaded file."
+    st.session_state["messages"].append({"role": "user", "content": user_message})
     with st.chat_message("user"):
-        st.markdown(user_input)
+        st.markdown(user_message)
 
     with st.chat_message("assistant"):
         placeholder = st.empty()
@@ -287,11 +303,11 @@ if st.session_state["tools_visible"]:
         st.session_state["motivation_index"] = (idx + 1) % len(quotes)
 
     # Image Analysis (Vision)
-    uploaded_file = st.sidebar.file_uploader("Upload Image for Analysis", type=["jpg", "jpeg", "png"])
-    if uploaded_file is not None:
-        st.sidebar.image(uploaded_file, caption="Uploaded Image", use_container_width=True)  # Fixed deprecation
-        bytes_data = uploaded_file.getvalue()
-        mime = "image/png" if uploaded_file.name.lower().endswith(".png") else "image/jpeg"
+    uploaded_file_vision = st.sidebar.file_uploader("Upload Image for Analysis", type=["jpg", "jpeg", "png"])
+    if uploaded_file_vision is not None:
+        st.sidebar.image(uploaded_file_vision, caption="Uploaded Image", use_container_width=True)
+        bytes_data = uploaded_file_vision.getvalue()
+        mime = "image/png" if uploaded_file_vision.name.lower().endswith(".png") else "image/jpeg"
         b64 = base64.b64encode(bytes_data).decode("utf-8")
 
         vision_messages = [
