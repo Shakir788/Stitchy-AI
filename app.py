@@ -101,12 +101,11 @@ def js_escape(s: str) -> str:
     """Escape Python string for safe embedding inside JS string literals."""
     return s.replace("\\", "\\\\").replace('"', '\\"').replace("\n", " ").replace("\r", " ")
 
-def read_file_content(file):
-    """Read content from uploaded file."""
-    if file.type == "text/plain":
-        return file.read().decode("utf-8")
-    else:
-        return f"Sorry, only text files (.txt) are supported for now. Uploaded: {file.name}"
+def process_image(file):
+    """Process uploaded image and return base64 encoded string."""
+    bytes_data = file.getvalue()
+    mime = "image/png" if file.name.lower().endswith(".png") else "image/jpeg"
+    return base64.b64encode(bytes_data).decode("utf-8"), mime
 
 # ---------- Load API Key ----------
 load_dotenv()
@@ -161,21 +160,53 @@ with chat_container:
                 st.markdown(msg["content"])
     st.markdown("</div>", unsafe_allow_html=True)
 
-# ---------- File Upload ----------
-uploaded_file = st.file_uploader("Upload a file (e.g., .txt) to include in chat", type=["txt"])
-if uploaded_file is not None:
-    file_content = read_file_content(uploaded_file)
-    st.session_state["messages"].append({"role": "user", "content": f"File content: {file_content}"})
+# ---------- Image Upload in Chat Box ----------
+uploaded_image = st.file_uploader("Upload an image (e.g., question screenshot)", type=["jpg", "jpeg", "png"], key="chat_image")
+if uploaded_image is not None:
+    b64_image, mime = process_image(uploaded_image)
+    vision_messages = [
+        {
+            "role": "user",
+            "content": [
+                {
+                    "type": "text",
+                    "text": "Analyze this image, which contains a question or study material. Provide a concise solution or summary in the same language as the content."
+                },
+                {
+                    "type": "image_url",
+                    "image_url": {"url": f"data:{mime};base64,{b64_image}"}
+                }
+            ]
+        }
+    ]
+    st.session_state["messages"].append({"role": "user", "content": f"Uploaded image: {uploaded_image.name}"})
     with st.chat_message("user"):
-        st.markdown(f"Uploaded file: {uploaded_file.name}\nContent: {file_content}")
+        st.image(uploaded_image, caption="Uploaded Image", use_container_width=True)
+        st.markdown(f"Analyzing: {uploaded_image.name}...")
+
+    with st.chat_message("assistant"):
+        placeholder = st.empty()
+        full_response = ""
+        try:
+            response = client.chat.completions.create(
+                model=os.getenv("VISION_MODEL", "qwen/qwen2.5-vl-32b-instruct:free"),
+                messages=vision_messages,
+                max_tokens=500
+            )
+            full_response = response.choices[0].message.content
+            placeholder.markdown(full_response)
+        except Exception as e:
+            full_response = f"Sorry, I hit an error: {str(e)}"
+            placeholder.markdown(full_response)
+
+    st.session_state["messages"].append({"role": "assistant", "content": full_response})
 
 # ---------- User Input & Streaming ----------
 user_input = st.chat_input("Say something to Stitchy...")
-if user_input or uploaded_file:
-    user_message = user_input if user_input else "Please analyze the uploaded file."
-    st.session_state["messages"].append({"role": "user", "content": user_message})
+if user_input:
+    st.session_state["messages"].append({"role": "user", "content": user_input})
     with st.chat_message("user"):
-        st.markdown(user_message)
+        st.markdown(user_input)
 
     with st.chat_message("assistant"):
         placeholder = st.empty()
@@ -301,40 +332,3 @@ if st.session_state["tools_visible"]:
         idx = st.session_state.get("motivation_index", 0)
         st.sidebar.info(quotes[idx])
         st.session_state["motivation_index"] = (idx + 1) % len(quotes)
-
-    # Image Analysis (Vision)
-    uploaded_file_vision = st.sidebar.file_uploader("Upload Image for Analysis", type=["jpg", "jpeg", "png"])
-    if uploaded_file_vision is not None:
-        st.sidebar.image(uploaded_file_vision, caption="Uploaded Image", use_container_width=True)
-        bytes_data = uploaded_file_vision.getvalue()
-        mime = "image/png" if uploaded_file_vision.name.lower().endswith(".png") else "image/jpeg"
-        b64 = base64.b64encode(bytes_data).decode("utf-8")
-
-        vision_messages = [
-            {
-                "role": "user",
-                "content": [
-                    {
-                        "type": "text",
-                        "text": "Analyze this image and provide a concise summary. If it contains text or notes, read and summarize them briefly."
-                    },
-                    {
-                        "type": "image_url",
-                        "image_url": {"url": f"data:{mime};base64,{b64}"}
-                    }
-                ]
-            }
-        ]
-
-        with st.sidebar:
-            st.write("Analyzing image...")
-            try:
-                response = client.chat.completions.create(
-                    model=os.getenv("VISION_MODEL", "qwen/qwen2.5-vl-32b-instruct:free"),
-                    messages=vision_messages,
-                    max_tokens=300
-                )
-                analysis = response.choices[0].message.content
-                st.sidebar.write(f"**Analysis:** {analysis}")
-            except Exception as e:
-                st.sidebar.error(f"Error analyzing image: {str(e)}")
